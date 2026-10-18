@@ -9,6 +9,7 @@ export type FeedHello = {
     tick: number;
     tickMs: number;
     players: number;
+    inspect?: boolean;
 };
 
 // One entity's changes this tick. Keys are only present when relevant.
@@ -70,4 +71,27 @@ export type FeedRoster = {
     npcs: number;
 };
 
-export type FeedMessage = FeedHello | FeedTick | FeedRoster;
+export type InspectionItem = { id: number; count: number; name: string };
+export type InspectionSkill = {
+    id: number;
+    name: string;
+    level: number;
+    baseLevel: number;
+    xp: number;
+    levelXp: number;
+    nextLevelXp: number | null;
+};
+export type InspectedPlayer = {
+    name: string;
+    combatLevel: number;
+    hp: [number, number];
+    inventory: (InspectionItem | null)[];
+    skills: InspectionSkill[];
+};
+export type FeedInspection = {
+    t: "inspect";
+    k: number;
+    name: string;
+    player: InspectedPlayer | null;
+};
+export type FeedMessage = FeedHello | FeedTick | FeedRoster | FeedInspection;

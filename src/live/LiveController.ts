@@ -8,7 +8,7 @@ import { IndexedSprite } from "../rs/sprite/IndexedSprite";
 import { LiveEntity, LivePlayer } from "./LiveEntity";
 import { LiveWorld } from "./LiveWorld";
 import { FeedStatus, WorldFeedClient } from "./WorldFeedClient";
-import { RosterPlayer } from "./protocol";
+import { FeedInspection, RosterPlayer } from "./protocol";
 
 // Tiles streamed around the camera; the engine caps a subscription at 384 x 384, which a radius
 // of 188 plus the grid padding fills exactly. Past that, players come from the roster instead.
@@ -63,6 +63,9 @@ export class LiveController {
     followName?: string;
     // From ?follow=<name>: start following once the roster says where they are.
     pendingFollow?: string;
+    inspectName?: string;
+    inspection?: FeedInspection;
+    inspectionSupported: boolean = false;
     // Orbit distance in tiles; 0 until the camera has been aimed at the player.
     private orbitDistance: number = 0;
     private lastRosterJumpTick: number = -1;
@@ -87,9 +90,16 @@ export class LiveController {
         seqFrameLoader: SeqFrameLoader,
         spotAnimTypeLoader: TypeLoader<SpotAnimType> | undefined,
     ) {
-        this.world = new LiveWorld(npcTypeLoader, seqTypeLoader, seqFrameLoader, spotAnimTypeLoader);
+        this.world = new LiveWorld(
+            npcTypeLoader,
+            seqTypeLoader,
+            seqFrameLoader,
+            spotAnimTypeLoader,
+        );
         this.feed = new WorldFeedClient(url, {
-            onHello: () => {
+            onHello: (hello) => {
+                this.inspectionSupported = hello.inspect === true;
+                this.inspection = undefined;
                 this.world.clear();
                 this.world.far.clear();
                 this.version++;
@@ -102,7 +112,14 @@ export class LiveController {
                 this.world.applyRoster(roster);
                 this.version++;
             },
+            onInspection: (inspection) => {
+                if (inspection.name === this.inspectName?.toLowerCase().replace(/_/g, " ")) {
+                    this.inspection = inspection;
+                    this.version++;
+                }
+            },
             onStatus: (status, error) => {
+                if (status !== "open") this.inspection = undefined;
                 this.status = status;
                 this.error = error;
                 this.version++;
@@ -117,7 +134,12 @@ export class LiveController {
     }
 
     // Called once per rendered frame with the 20ms client cycles that elapsed.
-    update(clientCycles: number, camera: Camera, renderDistance: number, getGroundY: (e: LiveEntity) => number | undefined): void {
+    update(
+        clientCycles: number,
+        camera: Camera,
+        renderDistance: number,
+        getGroundY: (e: LiveEntity) => number | undefined,
+    ): void {
         // Connect on the first rendered frame, so viewers that never render never connect.
         if (!this.started) {
             this.started = true;
@@ -139,7 +161,9 @@ export class LiveController {
         // Seeing further than the engine will stream: the half behind the camera is mostly off
         // screen, so slide the area forward, up to half its size (less when looking down).
         const radius = clamp(renderDistance, MIN_AREA_RADIUS, MAX_AREA_RADIUS);
-        const ahead = clamp(renderDistance - MAX_AREA_RADIUS, 0, MAX_AREA_RADIUS / 2) * Math.cos(camera.pitch * RS_TO_RADIANS);
+        const ahead =
+            clamp(renderDistance - MAX_AREA_RADIUS, 0, MAX_AREA_RADIUS / 2) *
+            Math.cos(camera.pitch * RS_TO_RADIANS);
         const yaw = (camera.yaw - 1024) * RS_TO_RADIANS;
         const centerX = camera.getPosX() - Math.sin(yaw) * ahead;
         const centerZ = camera.getPosZ() - Math.cos(yaw) * ahead;
@@ -147,6 +171,20 @@ export class LiveController {
         const z0 = Math.floor((centerZ - radius) / AREA_GRID) * AREA_GRID;
         const size = Math.ceil((radius * 2) / AREA_GRID) * AREA_GRID + AREA_GRID;
         this.feed.setArea(x0, z0, size, size);
+    }
+
+    inspect(name: string): void {
+        this.inspectName = name;
+        this.inspection = undefined;
+        this.feed.setInspection(name);
+        this.version++;
+    }
+
+    closeInspection(): void {
+        this.inspectName = undefined;
+        this.inspection = undefined;
+        this.feed.setInspection(null);
+        this.version++;
     }
 
     isFollowing(): boolean {
@@ -165,7 +203,9 @@ export class LiveController {
     // keep following them.
     goToPlayer(name: string, camera: Camera): void {
         const visible = this.world.findPlayer(name);
-        const entry = this.world.rosterPlayers.find((p) => p[1].toLowerCase() === name.toLowerCase());
+        const entry = this.world.rosterPlayers.find(
+            (p) => p[1].toLowerCase() === name.toLowerCase(),
+        );
         if (visible) {
             this.flyTo(camera, visible.x / 128, visible.z / 128);
         } else if (entry) {
@@ -229,7 +269,11 @@ export class LiveController {
         if (wheelDelta === 0 || this.orbitDistance === 0) {
             return;
         }
-        this.orbitDistance = clamp(this.orbitDistance * Math.exp(wheelDelta * 0.0015), MIN_ORBIT_DISTANCE, MAX_ORBIT_DISTANCE);
+        this.orbitDistance = clamp(
+            this.orbitDistance * Math.exp(wheelDelta * 0.0015),
+            MIN_ORBIT_DISTANCE,
+            MAX_ORBIT_DISTANCE,
+        );
     }
 
     getFollowed(): LivePlayer | undefined {
@@ -273,7 +317,11 @@ export class LiveController {
                 this.lastRosterJumpTick = this.world.rosterTick;
                 const name = this.followName.toLowerCase();
                 const entry = this.world.rosterPlayers.find((p) => p[1].toLowerCase() === name);
-                if (entry && (Math.abs(entry[2] + 0.5 - camera.getPosX()) > 32 || Math.abs(entry[3] + 0.5 - camera.getPosZ()) > 32)) {
+                if (
+                    entry &&
+                    (Math.abs(entry[2] + 0.5 - camera.getPosX()) > 32 ||
+                        Math.abs(entry[3] + 0.5 - camera.getPosZ()) > 32)
+                ) {
                     this.flyTo(camera, entry[2] + 0.5, entry[3] + 0.5);
                 }
             }
@@ -297,7 +345,9 @@ export class LiveController {
             const distance = Math.hypot(dx, dy, dz);
             this.orbitDistance = clamp(distance, MIN_ORBIT_DISTANCE, MAX_ORBIT_DISTANCE);
             camera.yaw = Math.round((Math.atan2(dx, dz) * 1024) / Math.PI) & 2047;
-            camera.pitch = Math.round(Math.asin(clamp(-dy / Math.max(distance, 0.001), -1, 1)) / RS_TO_RADIANS);
+            camera.pitch = Math.round(
+                Math.asin(clamp(-dy / Math.max(distance, 0.001), -1, 1)) / RS_TO_RADIANS,
+            );
         }
 
         camera.pitch = clamp(camera.pitch, MIN_ORBIT_PITCH, MAX_ORBIT_PITCH);
