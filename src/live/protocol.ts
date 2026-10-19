@@ -10,6 +10,7 @@ export type FeedHello = {
     tickMs: number;
     players: number;
     inspect?: boolean;
+    items?: boolean;
 };
 
 // One entity's changes this tick. Keys are only present when relevant.
@@ -50,6 +51,9 @@ export type FeedEntity = {
     em?: [number, number, number, number, number, number, number];
 };
 
+// Stable server object identity; count changes replace the complete record.
+export type FeedGroundItem = { i: number; t: number; c: number; x: number; z: number; l: number };
+
 export type FeedTick = {
     t: "tick";
     k: number;
@@ -59,6 +63,8 @@ export type FeedTick = {
     n?: FeedEntity[];
     rp?: number[];
     rn?: number[];
+    o?: FeedGroundItem[];
+    ro?: number[];
 };
 
 // [slot, name, x, z, level, combatLevel]

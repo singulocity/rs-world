@@ -16,7 +16,7 @@ import {
     getPreanimMove,
 } from "./LiveEntity";
 import { decodePlayerAppearance } from "./PlayerAppearance";
-import { FeedEntity, FeedRoster, FeedTick, RosterPlayer } from "./protocol";
+import { FeedEntity, FeedGroundItem, FeedRoster, FeedTick, RosterPlayer } from "./protocol";
 
 const DUPLICATE_RESET = 1;
 const DUPLICATE_RESETLOOP = 2;
@@ -26,6 +26,7 @@ const DUPLICATE_RESETLOOP = 2;
 export class LiveWorld {
     players: Map<number, LivePlayer> = new Map();
     npcs: Map<number, LiveNpc> = new Map();
+    groundItems: Map<number, FeedGroundItem> = new Map();
 
     loopCycle: number = 0;
 
@@ -50,6 +51,7 @@ export class LiveWorld {
     clear(): void {
         this.players.clear();
         this.npcs.clear();
+        this.groundItems.clear();
     }
 
     applyTick(msg: FeedTick): void {
@@ -63,6 +65,9 @@ export class LiveWorld {
             this.tickMs = this.tickMs * 0.8 + msg.ms * 0.2;
             this.tickSpeedMultiplier = Math.max(1, 420 / this.tickMs);
         }
+
+        for (const id of msg.ro ?? []) this.groundItems.delete(id);
+        for (const item of msg.o ?? []) this.groundItems.set(item.i, item);
 
         if (msg.rp) {
             for (const id of msg.rp) {

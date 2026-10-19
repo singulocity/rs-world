@@ -61,3 +61,24 @@ test("unsubscribes and does not restore a closed inspector", () => {
     expect(Socket.instances[1].send).not.toHaveBeenCalled();
     feed.close();
 });
+
+test("ground item subscription survives reconnect and can be disabled", () => {
+    const feed = client();
+    feed.setItems(true);
+    feed.connect();
+    const first = Socket.instances[0];
+    first.onopen!();
+    expect(first.send).toHaveBeenCalledWith(JSON.stringify({ t: "items", on: true }));
+    first.onclose!({ code: 1006 });
+    jest.advanceTimersByTime(1000);
+    const second = Socket.instances[1];
+    second.onopen!();
+    expect(second.send).toHaveBeenCalledWith(JSON.stringify({ t: "items", on: true }));
+    feed.setItems(false);
+    expect(second.send).toHaveBeenLastCalledWith(JSON.stringify({ t: "items", on: false }));
+    second.onclose!({ code: 1006 });
+    jest.advanceTimersByTime(2000);
+    Socket.instances[2].onopen!();
+    expect(Socket.instances[2].send).not.toHaveBeenCalled();
+    feed.close();
+});

@@ -910,7 +910,10 @@ export class WebGLMapViewerRenderer extends MapViewerRenderer<WebGLMapSquare> {
         this.tickPass(timeSec, ticksElapsed, clientTicksElapsed);
         if (live && this.liveRenderer) {
             this.liveRenderer.showPlayers = live.options.showPlayers;
+            live.options.showNpcs = this.mapViewer.showNpcs;
+            live.options.showItems = this.mapViewer.showItems;
             this.liveRenderer.showNpcs = live.options.showNpcs;
+            this.liveRenderer.showItems = live.options.showItems;
             this.liveRenderer.prepare(this.maxLevel, camera, renderDistance);
         }
         const tickTime = performance.now() - tickStart;
@@ -1073,6 +1076,7 @@ export class WebGLMapViewerRenderer extends MapViewerRenderer<WebGLMapSquare> {
                 this.mapViewer.seqTypeLoader,
                 this.mapManager,
                 live.world,
+                this.mapViewer.objTypeLoader,
             );
         }
         live.update(
@@ -1428,6 +1432,21 @@ export class WebGLMapViewerRenderer extends MapViewerRenderer<WebGLMapSquare> {
                         targetId: locType.id,
                         targetType: MenuTargetType.LOC,
                         targetName: locType.name,
+                        targetLevel: -1,
+                        onClick: this.mapViewer.onExamine,
+                    });
+                } else if (live && interactType === InteractType.LIVE_ITEM) {
+                    const item = live.world.groundItems.get(interactId);
+                    if (!item || !live.options.showItems) continue;
+                    const key = "o" + interactId;
+                    if (liveIds.has(key)) continue;
+                    liveIds.add(key);
+                    const type = this.mapViewer.objTypeLoader.load(item.t);
+                    examineEntries.push({
+                        option: "Examine",
+                        targetId: type.id,
+                        targetType: MenuTargetType.OBJ,
+                        targetName: type.name + (item.c > 1 ? " × " + item.c.toLocaleString() : ""),
                         targetLevel: -1,
                         onClick: this.mapViewer.onExamine,
                     });

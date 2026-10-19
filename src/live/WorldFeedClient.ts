@@ -23,6 +23,7 @@ export class WorldFeedClient {
 
     area?: Area;
     roster: boolean = false;
+    items: boolean = false;
     inspectName: string | null = null;
 
     bytesReceived: number = 0;
@@ -75,6 +76,12 @@ export class WorldFeedClient {
         this.send({ t: "roster", on });
     }
 
+    setItems(on: boolean): void {
+        if (this.items === on) return;
+        this.items = on;
+        this.send({ t: "items", on });
+    }
+
     setInspection(name: string | null): void {
         this.inspectName = name;
         this.send({ t: "inspect", name });
@@ -96,6 +103,7 @@ export class WorldFeedClient {
             this.reconnectDelay = 1000;
             this.setStatus("open");
             this.sendArea();
+            if (this.items) this.send({ t: "items", on: true });
             if (this.inspectName) this.send({ t: "inspect", name: this.inspectName });
             if (this.roster) {
                 this.send({ t: "roster", on: true });

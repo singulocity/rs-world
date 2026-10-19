@@ -34,6 +34,7 @@ const RS_TO_RADIANS = Math.PI / 1024;
 export type LiveOptions = {
     showPlayers: boolean;
     showNpcs: boolean;
+    showItems: boolean;
     showPlayerNames: boolean;
     showNpcNames: boolean;
     showChat: boolean;
@@ -52,6 +53,7 @@ export class LiveController {
     options: LiveOptions = {
         showPlayers: true,
         showNpcs: true,
+        showItems: true,
         showPlayerNames: true,
         showNpcNames: false,
         showChat: true,
@@ -119,13 +121,17 @@ export class LiveController {
                 }
             },
             onStatus: (status, error) => {
-                if (status !== "open") this.inspection = undefined;
+                if (status !== "open") {
+                    this.inspection = undefined;
+                    this.world.groundItems.clear();
+                }
                 this.status = status;
                 this.error = error;
                 this.version++;
             },
         });
         this.feed.setRoster(true);
+        this.feed.setItems(true);
     }
 
     stop(): void {
