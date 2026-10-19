@@ -1,8 +1,9 @@
 .player-inspector {
-    position: absolute;
+    position: fixed;
     top: 70px;
     right: 280px;
     width: 292px;
+    max-width: calc(100vw - 16px);
     max-height: calc(100dvh - 100px);
     box-sizing: border-box;
     display: flex;
@@ -32,7 +33,7 @@
     font-family: "OSRS Bold", monospace;
     font-size: 20px;
 }
-.inspect-header button {
+.inspect-header > .live-button {
     font-size: 22px;
 }
 .inspect-muted {
@@ -146,4 +147,30 @@
     top: max(65px, env(safe-area-inset-top));
     width: min(292px, calc(100vw - 20px));
     max-height: calc(100dvh - 190px);
+}
+
+.inspect-drag-handle {
+    flex: 1;
+    min-width: 0;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    text-shadow: inherit;
+    text-align: left;
+    cursor: grab;
+    touch-action: none;
+    user-select: none;
+}
+.inspect-drag-handle:active {
+    cursor: grabbing;
+}
+.inspect-drag-handle .inspect-muted {
+    display: block;
+}
+.inspect-header,
+.inspect-follow,
+.inspect-tabs {
+    flex-shrink: 0;
 }

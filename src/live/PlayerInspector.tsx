@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { MapViewer } from "../mapviewer/MapViewer";
 import { useLiveVersion } from "./LivePanel";
@@ -69,6 +69,27 @@ export function PlayerInspector({ mapViewer }: { mapViewer: MapViewer }): JSX.El
     const name = live?.inspectName;
     const [tab, setTab] = useState<"inventory" | "skills">("inventory");
     const panel = useRef<HTMLElement>(null);
+    const [position, setPosition] = useState<{ left: number; top: number } | null>(null);
+    const drag = useRef<{
+        pointerId: number;
+        x: number;
+        y: number;
+        left: number;
+        top: number;
+    } | null>(null);
+    const constrain = useCallback((left: number, top: number) => {
+        const bounds = panel.current?.getBoundingClientRect();
+        return {
+            left: Math.max(8, Math.min(left, window.innerWidth - (bounds?.width ?? 292) - 8)),
+            top: Math.max(8, Math.min(top, window.innerHeight - (bounds?.height ?? 100) - 8)),
+        };
+    }, []);
+    useEffect(() => {
+        const resize = () =>
+            setPosition((current) => (current ? constrain(current.left, current.top) : null));
+        window.addEventListener("resize", resize);
+        return () => window.removeEventListener("resize", resize);
+    }, [constrain]);
     const close = () => {
         live?.closeInspection();
         mapViewer.renderer.canvas.focus();
@@ -98,6 +119,16 @@ export function PlayerInspector({ mapViewer }: { mapViewer: MapViewer }): JSX.El
             aria-label={`Inspect ${name}`}
             tabIndex={-1}
             ref={panel}
+            style={
+                position
+                    ? {
+                          left: position.left,
+                          top: position.top,
+                          right: "auto",
+                          maxHeight: `calc(100dvh - ${position.top + 10}px)`,
+                      }
+                    : undefined
+            }
             onKeyDown={(event) => {
                 if (event.key === "Escape") {
                     event.stopPropagation();
@@ -106,14 +137,68 @@ export function PlayerInspector({ mapViewer }: { mapViewer: MapViewer }): JSX.El
             }}
         >
             <div className="inspect-header">
-                <div>
+                <button
+                    className="inspect-drag-handle"
+                    aria-label="Move character inspector"
+                    title="Drag to move; arrow keys also move this panel"
+                    onPointerDown={(event) => {
+                        if (event.button !== 0) return;
+                        event.preventDefault();
+                        event.stopPropagation();
+                        event.currentTarget.focus();
+                        const bounds = panel.current!.getBoundingClientRect();
+                        drag.current = {
+                            pointerId: event.pointerId,
+                            x: event.clientX,
+                            y: event.clientY,
+                            left: bounds.left,
+                            top: bounds.top,
+                        };
+                        event.currentTarget.setPointerCapture(event.pointerId);
+                    }}
+                    onPointerMove={(event) => {
+                        const start = drag.current;
+                        if (!start || start.pointerId !== event.pointerId) return;
+                        event.stopPropagation();
+                        setPosition(
+                            constrain(
+                                start.left + event.clientX - start.x,
+                                start.top + event.clientY - start.y,
+                            ),
+                        );
+                    }}
+                    onPointerUp={(event) => {
+                        if (drag.current?.pointerId !== event.pointerId) return;
+                        drag.current = null;
+                        event.currentTarget.releasePointerCapture(event.pointerId);
+                    }}
+                    onLostPointerCapture={() => {
+                        drag.current = null;
+                    }}
+                    onPointerCancel={() => {
+                        drag.current = null;
+                    }}
+                    onKeyDown={(event) => {
+                        const offset = {
+                            ArrowLeft: [-16, 0],
+                            ArrowRight: [16, 0],
+                            ArrowUp: [0, -16],
+                            ArrowDown: [0, 16],
+                        }[event.key];
+                        if (!offset) return;
+                        event.preventDefault();
+                        event.stopPropagation();
+                        const bounds = panel.current!.getBoundingClientRect();
+                        setPosition(constrain(bounds.left + offset[0], bounds.top + offset[1]));
+                    }}
+                >
                     <strong>{details?.name ?? name}</strong>
                     {details && (
-                        <div className="inspect-muted">
+                        <span className="inspect-muted">
                             Combat {details.combatLevel} · HP {details.hp[0]}/{details.hp[1]}
-                        </div>
+                        </span>
                     )}
-                </div>
+                </button>
                 <button
                     className="live-button"
                     aria-label="Close character inspector"

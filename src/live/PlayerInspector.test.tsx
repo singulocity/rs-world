@@ -94,3 +94,58 @@ test("reports old servers without inspection support", () => {
     render(<PlayerInspector mapViewer={mapViewer} />);
     expect(screen.getByRole("status")).toHaveTextContent("unavailable on this server");
 });
+
+test("the inspector title supports keyboard movement and stays inside the window", () => {
+    const { container } = render(<PlayerInspector mapViewer={viewer()} />);
+    const panel = screen.getByRole("dialog");
+    const bounds = jest
+        .spyOn(panel, "getBoundingClientRect")
+        .mockReturnValue({ left: 100, top: 80, width: 292, height: 400 } as DOMRect);
+    const handle = screen.getByRole("button", { name: "Move character inspector" });
+    fireEvent.keyDown(handle, { key: "ArrowRight" });
+    expect(panel).toHaveStyle({ left: "116px", top: "80px", right: "auto" });
+    bounds.mockReturnValue({ left: -100, top: -100, width: 292, height: 400 } as DOMRect);
+    fireEvent.keyDown(handle, { key: "ArrowUp" });
+    expect(panel).toHaveStyle({ left: "8px", top: "8px" });
+    fireEvent.click(screen.getByRole("tab", { name: "Skills" }));
+    expect(container.querySelector(".inspect-skills")).toBeInTheDocument();
+    expect(panel).toHaveStyle({ left: "8px", top: "8px" });
+    bounds.mockRestore();
+});
+
+test("dragging captures the pointer, releases it and preserves position when switching characters", () => {
+    class TestPointerEvent extends MouseEvent {
+        pointerId: number;
+        constructor(type: string, init: PointerEventInit) {
+            super(type, init);
+            this.pointerId = init.pointerId ?? 1;
+        }
+    }
+    const original = window.PointerEvent;
+    window.PointerEvent = TestPointerEvent as any;
+    const mapViewer = viewer();
+    const { rerender } = render(<PlayerInspector mapViewer={mapViewer} />);
+    const panel = screen.getByRole("dialog");
+    const bounds = jest
+        .spyOn(panel, "getBoundingClientRect")
+        .mockReturnValue({ left: 100, top: 80, width: 292, height: 400 } as DOMRect);
+    const handle = screen.getByRole("button", { name: "Move character inspector" });
+    handle.setPointerCapture = jest.fn();
+    handle.releasePointerCapture = jest.fn();
+    fireEvent.pointerDown(handle, { button: 0, clientX: 120, clientY: 100, pointerId: 3 });
+    fireEvent.pointerMove(handle, { clientX: 220, clientY: 150, pointerId: 3 });
+    expect(handle.setPointerCapture).toHaveBeenCalledWith(3);
+    expect(panel).toHaveStyle({ left: "200px", top: "130px" });
+    fireEvent.pointerUp(handle, { pointerId: 3 });
+    fireEvent.pointerMove(handle, { clientX: 600, clientY: 500, pointerId: 3 });
+    expect(panel).toHaveStyle({ left: "200px", top: "130px" });
+    expect(handle.releasePointerCapture).toHaveBeenCalledWith(3);
+    mapViewer.live.inspectName = "Bob";
+    rerender(<PlayerInspector mapViewer={mapViewer} />);
+    expect(screen.getByRole("dialog", { name: "Inspect Bob" })).toHaveStyle({
+        left: "200px",
+        top: "130px",
+    });
+    bounds.mockRestore();
+    window.PointerEvent = original;
+});

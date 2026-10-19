@@ -211,7 +211,7 @@ export function MapViewerContainer({ mapViewer }: MapViewerContainerProps): JSX.
                         <div className="fps-counter content-text">{mapViewer.debugText}</div>
                     </div>
                     <div className="live-hud">
-                        <InfoPanel />
+                        <InfoPanel mapViewer={mapViewer} />
                         <LivePanel mapViewer={mapViewer} />
                         <PlayerInspector mapViewer={mapViewer} />
                     </div>
