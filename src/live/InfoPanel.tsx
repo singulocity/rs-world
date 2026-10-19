@@ -6,6 +6,7 @@ import { useLiveVersion } from "./LivePanel";
 
 type ProcessMemory = {
     service: string;
+    botName?: string | null;
     pid: number;
     workingSetBytes: number;
     privateBytes: number;
@@ -49,12 +50,63 @@ function serviceName(service: string): string {
         .replace(/^routine-/, "Controller · ");
 }
 
+type MemoryGroup = {
+    key: string;
+    service: string;
+    bot: boolean;
+    processes: ProcessMemory[];
+    workingSetBytes: number;
+    privateBytes: number;
+};
+
+function groupProcesses(processes: ProcessMemory[]): MemoryGroup[] {
+    const groups = new Map<string, MemoryGroup>();
+    for (const process of processes) {
+        const bot = /^(?:bot|routine)(?:-([a-zA-Z0-9]{1,12}))?(?: \/ child)?$/.exec(
+            process.service,
+        );
+        const name = bot
+            ? process.botName ?? bot[1] ?? "Original bot"
+            : serviceName(process.service);
+        const key = bot ? `bot:${name.toLowerCase()}` : `process:${process.pid}`;
+        let group = groups.get(key);
+        if (!group) {
+            group = {
+                key,
+                service: name,
+                bot: !!bot,
+                processes: [],
+                workingSetBytes: 0,
+                privateBytes: 0,
+            };
+            groups.set(key, group);
+        }
+        group.processes.push(process);
+        group.workingSetBytes += process.workingSetBytes;
+        group.privateBytes += process.privateBytes;
+    }
+    return [...groups.values()];
+}
+
+function botProcessName(service: string): string {
+    const name = service.startsWith("routine") ? "Controller" : "Client";
+    return service.endsWith(" / child") ? `${name} / child` : name;
+}
+
 export function InfoPanel({ mapViewer }: { mapViewer: MapViewer }): JSX.Element {
     useLiveVersion(mapViewer);
     const endpoint = metricsUrl(mapViewer.live?.url);
     const [open, setOpen] = useState(false);
     const [snapshot, setSnapshot] = useState<MemorySnapshot | null>(null);
     const [error, setError] = useState<string | null>(null);
+    const [expandedBots, setExpandedBots] = useState<Set<string>>(() => new Set());
+    const toggleBot = (key: string) =>
+        setExpandedBots((current) => {
+            const next = new Set(current);
+            if (next.has(key)) next.delete(key);
+            else next.add(key);
+            return next;
+        });
     const [sort, setSort] = useState<"workingSetBytes" | "privateBytes" | "service">(
         "workingSetBytes",
     );
@@ -100,7 +152,7 @@ export function InfoPanel({ mapViewer }: { mapViewer: MapViewer }): JSX.Element 
         };
     }, [open, endpoint]);
 
-    const rows = [...(snapshot?.processes ?? [])].sort((a, b) =>
+    const rows = groupProcesses(snapshot?.processes ?? []).sort((a, b) =>
         sort === "service" ? a.service.localeCompare(b.service) : b[sort] - a[sort],
     );
     const used = snapshot ? snapshot.host.totalBytes - snapshot.host.availableBytes : 0;
@@ -192,7 +244,7 @@ export function InfoPanel({ mapViewer }: { mapViewer: MapViewer }): JSX.Element 
                                                 }
                                             >
                                                 <button onClick={() => setSort("service")}>
-                                                    Process
+                                                    Bot / process
                                                 </button>
                                             </th>
                                             <th scope="col">PID</th>
@@ -220,20 +272,73 @@ export function InfoPanel({ mapViewer }: { mapViewer: MapViewer }): JSX.Element 
                                             </th>
                                         </tr>
                                     </thead>
-                                    <tbody>
-                                        {rows.map((row) => (
-                                            <tr key={row.pid}>
-                                                <td>{serviceName(row.service)}</td>
-                                                <td>{row.pid}</td>
-                                                <td>{memory(row.workingSetBytes)}</td>
-                                                <td>{memory(row.privateBytes)}</td>
+                                    {rows.map((group) => (
+                                        <tbody key={group.key}>
+                                            <tr
+                                                className={
+                                                    group.bot ? "memory-bot-total" : undefined
+                                                }
+                                            >
+                                                <td>
+                                                    {group.bot ? (
+                                                        <button
+                                                            className="memory-group-toggle"
+                                                            aria-label={`${group.service} processes`}
+                                                            aria-expanded={expandedBots.has(
+                                                                group.key,
+                                                            )}
+                                                            onClick={() => toggleBot(group.key)}
+                                                        >
+                                                            <span
+                                                                className="memory-group-arrow"
+                                                                aria-hidden="true"
+                                                            >
+                                                                {expandedBots.has(group.key)
+                                                                    ? "▾"
+                                                                    : "▸"}
+                                                            </span>
+                                                            {group.service}
+                                                            <span className="memory-process-count">
+                                                                {group.processes.length} processes
+                                                            </span>
+                                                        </button>
+                                                    ) : (
+                                                        group.service
+                                                    )}
+                                                </td>
+                                                <td>{group.bot ? "—" : group.processes[0].pid}</td>
+                                                <td>{memory(group.workingSetBytes)}</td>
+                                                <td>{memory(group.privateBytes)}</td>
                                             </tr>
-                                        ))}
-                                    </tbody>
+                                            {group.bot &&
+                                                expandedBots.has(group.key) &&
+                                                [...group.processes]
+                                                    .sort(
+                                                        (a, b) =>
+                                                            a.service.localeCompare(b.service) ||
+                                                            a.pid - b.pid,
+                                                    )
+                                                    .map((process) => (
+                                                        <tr
+                                                            key={process.pid}
+                                                            className="memory-bot-process"
+                                                        >
+                                                            <td>
+                                                                {botProcessName(process.service)}
+                                                            </td>
+                                                            <td>{process.pid}</td>
+                                                            <td>
+                                                                {memory(process.workingSetBytes)}
+                                                            </td>
+                                                            <td>{memory(process.privateBytes)}</td>
+                                                        </tr>
+                                                    ))}
+                                        </tbody>
+                                    ))}
                                 </table>
                             </div>
                             <p className="memory-note">
-                                Managed services, bot clients/controllers and child processes.
+                                Expand a bot to see its client, controller and child processes.
                                 Browser and GPU usage are excluded.
                             </p>
                             <p className="memory-note">

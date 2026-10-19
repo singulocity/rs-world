@@ -133,3 +133,37 @@
     outline: 2px solid #ffd365;
     outline-offset: 2px;
 }
+
+.memory-group-toggle {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    gap: 4px;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: #ffff80;
+    font: inherit;
+    text-shadow: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+.memory-group-arrow {
+    width: 10px;
+    flex-shrink: 0;
+}
+.memory-process-count {
+    color: #c5b99e;
+    font-size: 13px;
+    margin-left: auto;
+}
+.memory-bot-total {
+    background: #17140f40;
+}
+.memory-bot-total > td:nth-last-child(-n + 2) {
+    color: #ffff80;
+}
+.memory-bot-process > td:first-child {
+    padding-left: 20px;
+    color: #c5b99e;
+}
