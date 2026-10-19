@@ -55,6 +55,7 @@ type MemoryGroup = {
     service: string;
     bot: boolean;
     processes: ProcessMemory[];
+    children?: MemoryGroup[];
     workingSetBytes: number;
     privateBytes: number;
 };
@@ -91,6 +92,81 @@ function groupProcesses(processes: ProcessMemory[]): MemoryGroup[] {
 function botProcessName(service: string): string {
     const name = service.startsWith("routine") ? "Controller" : "Client";
     return service.endsWith(" / child") ? `${name} / child` : name;
+}
+
+function MemoryGroupRows({
+    group,
+    expanded,
+    toggle,
+}: {
+    group: MemoryGroup;
+    expanded: Set<string>;
+    toggle: (key: string) => void;
+}) {
+    const expandable = group.bot || !!group.children;
+    const open = expanded.has(group.key);
+    return (
+        <>
+            <tr
+                className={
+                    group.children
+                        ? "memory-fleet-total"
+                        : group.bot
+                        ? "memory-bot-total"
+                        : undefined
+                }
+            >
+                <td>
+                    {expandable ? (
+                        <button
+                            className="memory-group-toggle"
+                            aria-label={
+                                group.children ? group.service : `${group.service} processes`
+                            }
+                            aria-expanded={open}
+                            onClick={() => toggle(group.key)}
+                        >
+                            <span className="memory-group-arrow" aria-hidden="true">
+                                {open ? "▾" : "▸"}
+                            </span>
+                            {group.service}
+                            <span className="memory-process-count">
+                                {group.children
+                                    ? `${group.children.length} bots`
+                                    : `${group.processes.length} processes`}
+                            </span>
+                        </button>
+                    ) : (
+                        group.service
+                    )}
+                </td>
+                <td>{expandable ? "—" : group.processes[0].pid}</td>
+                <td>{memory(group.workingSetBytes)}</td>
+                <td>{memory(group.privateBytes)}</td>
+            </tr>
+            {open &&
+                group.children?.map((child) => (
+                    <MemoryGroupRows
+                        key={child.key}
+                        group={child}
+                        expanded={expanded}
+                        toggle={toggle}
+                    />
+                ))}
+            {open &&
+                group.bot &&
+                [...group.processes]
+                    .sort((a, b) => a.service.localeCompare(b.service) || a.pid - b.pid)
+                    .map((process) => (
+                        <tr key={process.pid} className="memory-bot-process">
+                            <td>{botProcessName(process.service)}</td>
+                            <td>{process.pid}</td>
+                            <td>{memory(process.workingSetBytes)}</td>
+                            <td>{memory(process.privateBytes)}</td>
+                        </tr>
+                    ))}
+        </>
+    );
 }
 
 export function InfoPanel({ mapViewer }: { mapViewer: MapViewer }): JSX.Element {
@@ -152,7 +228,23 @@ export function InfoPanel({ mapViewer }: { mapViewer: MapViewer }): JSX.Element 
         };
     }, [open, endpoint]);
 
-    const rows = groupProcesses(snapshot?.processes ?? []).sort((a, b) =>
+    const groups = groupProcesses(snapshot?.processes ?? []).sort((a, b) =>
+        sort === "service" ? a.service.localeCompare(b.service) : b[sort] - a[sort],
+    );
+    const bots = groups.filter((group) => group.bot);
+    const rows: MemoryGroup[] = groups.filter((group) => !group.bot);
+    if (bots.length) {
+        rows.push({
+            key: "all-bots",
+            service: "All bots",
+            bot: false,
+            children: bots,
+            processes: bots.flatMap((group) => group.processes),
+            workingSetBytes: bots.reduce((sum, group) => sum + group.workingSetBytes, 0),
+            privateBytes: bots.reduce((sum, group) => sum + group.privateBytes, 0),
+        });
+    }
+    rows.sort((a, b) =>
         sort === "service" ? a.service.localeCompare(b.service) : b[sort] - a[sort],
     );
     const used = snapshot ? snapshot.host.totalBytes - snapshot.host.availableBytes : 0;
@@ -274,72 +366,18 @@ export function InfoPanel({ mapViewer }: { mapViewer: MapViewer }): JSX.Element 
                                     </thead>
                                     {rows.map((group) => (
                                         <tbody key={group.key}>
-                                            <tr
-                                                className={
-                                                    group.bot ? "memory-bot-total" : undefined
-                                                }
-                                            >
-                                                <td>
-                                                    {group.bot ? (
-                                                        <button
-                                                            className="memory-group-toggle"
-                                                            aria-label={`${group.service} processes`}
-                                                            aria-expanded={expandedBots.has(
-                                                                group.key,
-                                                            )}
-                                                            onClick={() => toggleBot(group.key)}
-                                                        >
-                                                            <span
-                                                                className="memory-group-arrow"
-                                                                aria-hidden="true"
-                                                            >
-                                                                {expandedBots.has(group.key)
-                                                                    ? "▾"
-                                                                    : "▸"}
-                                                            </span>
-                                                            {group.service}
-                                                            <span className="memory-process-count">
-                                                                {group.processes.length} processes
-                                                            </span>
-                                                        </button>
-                                                    ) : (
-                                                        group.service
-                                                    )}
-                                                </td>
-                                                <td>{group.bot ? "—" : group.processes[0].pid}</td>
-                                                <td>{memory(group.workingSetBytes)}</td>
-                                                <td>{memory(group.privateBytes)}</td>
-                                            </tr>
-                                            {group.bot &&
-                                                expandedBots.has(group.key) &&
-                                                [...group.processes]
-                                                    .sort(
-                                                        (a, b) =>
-                                                            a.service.localeCompare(b.service) ||
-                                                            a.pid - b.pid,
-                                                    )
-                                                    .map((process) => (
-                                                        <tr
-                                                            key={process.pid}
-                                                            className="memory-bot-process"
-                                                        >
-                                                            <td>
-                                                                {botProcessName(process.service)}
-                                                            </td>
-                                                            <td>{process.pid}</td>
-                                                            <td>
-                                                                {memory(process.workingSetBytes)}
-                                                            </td>
-                                                            <td>{memory(process.privateBytes)}</td>
-                                                        </tr>
-                                                    ))}
+                                            <MemoryGroupRows
+                                                group={group}
+                                                expanded={expandedBots}
+                                                toggle={toggleBot}
+                                            />
                                         </tbody>
                                     ))}
                                 </table>
                             </div>
                             <p className="memory-note">
-                                Expand a bot to see its client, controller and child processes.
-                                Browser and GPU usage are excluded.
+                                Expand All bots, then a bot to see its client, controller and child
+                                processes. Browser and GPU usage are excluded.
                             </p>
                             <p className="memory-note">
                                 Working sets include shared pages, so their sum can double-count

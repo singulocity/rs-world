@@ -32,6 +32,11 @@ test("loads on demand and shows collapsed bot totals and system RAM", async () =
     fireEvent.click(screen.getByRole("button", { name: "Processes" }));
     await screen.findByText("1.50 GiB");
     expect(screen.getByText("3.00 GiB")).toBeInTheDocument();
+    const allBots = screen.getByRole("button", { name: "All bots" });
+    expect(allBots).toHaveAttribute("aria-expanded", "false");
+    expect(within(allBots.closest("tr")!).getByText("512.0 MiB")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "ChefCora processes" })).not.toBeInTheDocument();
+    fireEvent.click(allBots);
     const bot = screen.getByRole("button", { name: "ChefCora processes" });
     expect(bot).toHaveAttribute("aria-expanded", "false");
     expect(screen.queryByText("42")).not.toBeInTheDocument();
@@ -104,14 +109,21 @@ test("combines clients, controllers and descendants without changing overall tot
     });
     const { container } = render(<InfoPanel mapViewer={viewer} />);
     fireEvent.click(screen.getByRole("button", { name: "Processes" }));
-    const chef = await screen.findByRole("button", { name: "ChefCora processes" });
+    const allBots = await screen.findByRole("button", { name: "All bots" });
+    fireEvent.click(allBots);
+    const chef = screen.getByRole("button", { name: "ChefCora processes" });
     const summary = chef.closest("tr")!;
     expect(within(summary).getByText("530.0 MiB")).toBeInTheDocument();
     expect(within(summary).getByText("1.03 GiB")).toBeInTheDocument();
     expect(within(summary).getByText("4 processes")).toBeInTheDocument();
-    expect(container.querySelectorAll("tbody tr")).toHaveLength(3);
-    // Sort by combined memory: ChefCora's 530 MiB is above the 400 MiB engine.
-    expect(container.querySelector("tbody tr")).toBe(summary);
+    expect(container.querySelectorAll("tbody tr")).toHaveLength(4);
+    const fleet = allBots.closest("tr")!;
+    // Bot-only totals exclude the shared engine and count each process once.
+    expect(within(fleet).getByText("790.0 MiB")).toBeInTheDocument();
+    expect(within(fleet).getByText("1.53 GiB")).toBeInTheDocument();
+    expect(within(fleet).getByText("2 bots")).toBeInTheDocument();
+    expect(container.querySelector("tbody tr")).toBe(fleet);
+    expect(container.querySelectorAll(".memory-bot-total")[0]).toBe(summary);
     const primary = screen.getByRole("button", { name: "KuUzmeFTw processes" });
     expect(within(primary.closest("tr")!).getByText("260.0 MiB")).toBeInTheDocument();
     fireEvent.click(chef);
@@ -119,7 +131,14 @@ test("combines clients, controllers and descendants without changing overall tot
     expect(screen.getByText("Client / child")).toBeInTheDocument();
     expect(screen.getByText("Controller / child")).toBeInTheDocument();
     expect(screen.queryByText("46")).not.toBeInTheDocument();
-    fireEvent.click(chef);
+    fireEvent.click(allBots);
+    expect(screen.queryByText("42")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "ChefCora processes" })).not.toBeInTheDocument();
+    fireEvent.click(allBots);
+    const reopened = screen.getByRole("button", { name: "ChefCora processes" });
+    expect(reopened).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByText("42")).toBeInTheDocument();
+    fireEvent.click(reopened);
     expect(screen.queryByText("42")).not.toBeInTheDocument();
     expect(screen.getByText("1.50 GiB")).toBeInTheDocument();
 });
@@ -128,7 +147,9 @@ test("keeps a bot expanded across live samples and updates its combined total", 
     jest.useFakeTimers();
     render(<InfoPanel mapViewer={viewer} />);
     fireEvent.click(screen.getByRole("button", { name: "Processes" }));
-    const chef = await screen.findByRole("button", { name: "ChefCora processes" });
+    const allBots = await screen.findByRole("button", { name: "All bots" });
+    fireEvent.click(allBots);
+    const chef = screen.getByRole("button", { name: "ChefCora processes" });
     fireEvent.click(chef);
     (global.fetch as jest.Mock).mockResolvedValue({
         ok: true,
@@ -152,5 +173,7 @@ test("keeps a bot expanded across live samples and updates its combined total", 
         expect(within(chef.closest("tr")!).getByText("768.0 MiB")).toBeInTheDocument(),
     );
     expect(chef).toHaveAttribute("aria-expanded", "true");
+    expect(allBots).toHaveAttribute("aria-expanded", "true");
+    expect(within(allBots.closest("tr")!).getByText("768.0 MiB")).toBeInTheDocument();
     expect(screen.getByText("43")).toBeInTheDocument();
 });

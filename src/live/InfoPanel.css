@@ -157,13 +157,19 @@
     font-size: 13px;
     margin-left: auto;
 }
+.memory-fleet-total,
 .memory-bot-total {
     background: #17140f40;
 }
+.memory-fleet-total > td:nth-last-child(-n + 2),
 .memory-bot-total > td:nth-last-child(-n + 2) {
     color: #ffff80;
 }
 .memory-bot-process > td:first-child {
-    padding-left: 20px;
+    padding-left: 32px;
     color: #c5b99e;
+}
+
+.memory-bot-total > td:first-child {
+    padding-left: 18px;
 }
