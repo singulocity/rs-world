@@ -58,6 +58,9 @@ export class InputManager {
 
     gamepadIndex?: number;
 
+    // Off in wallpaper mode: no mouse/touch/wheel camera control, clicks or hover menus.
+    mouseEnabled: boolean = true;
+
     init(element: HTMLElement) {
         if (!this.element) {
             this.cleanUp();
@@ -67,10 +70,18 @@ export class InputManager {
         window.addEventListener("gamepadconnected", this.onGamepadConnected);
         window.addEventListener("gamepaddisconnected", this.onGamepadDisconnected);
 
-        element.addEventListener("dblclick", this.onDoubleClick);
-
         element.addEventListener("keydown", this.onKeyDown);
         element.addEventListener("keyup", this.onKeyUp);
+
+        element.addEventListener("contextmenu", this.onContextMenu);
+
+        element.addEventListener("focusout", this.onFocusOut);
+
+        if (!this.mouseEnabled) {
+            return;
+        }
+
+        element.addEventListener("dblclick", this.onDoubleClick);
 
         element.addEventListener("mousedown", this.onMouseDown);
         element.addEventListener("mousemove", this.onMouseMove);
@@ -81,10 +92,6 @@ export class InputManager {
         element.addEventListener("touchmove", this.onTouchMove, { passive: false });
         element.addEventListener("touchend", this.onTouchEnd);
         element.addEventListener("touchcancel", this.onTouchEnd);
-
-        element.addEventListener("contextmenu", this.onContextMenu);
-
-        element.addEventListener("focusout", this.onFocusOut);
 
         element.addEventListener("wheel", this.onWheel, { passive: false });
     }

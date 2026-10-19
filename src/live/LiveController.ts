@@ -71,6 +71,10 @@ export class LiveController {
     // Orbit distance in tiles; 0 until the camera has been aimed at the player.
     private orbitDistance: number = 0;
     private lastRosterJumpTick: number = -1;
+    // Where the orbit pivot was last frame while following, in tiles.
+    private pivot?: [number, number, number];
+    // panToPlayer: glide the pivot from `from` to the new player over `duration` ms.
+    private pan?: { from: [number, number, number]; start: number; duration: number };
 
     // The Live panel's search. It lives here so the next/previous player keys step through the
     // list the panel shows, even with the UI hidden.
@@ -202,6 +206,7 @@ export class LiveController {
         this.followName = player.name;
         this.followSlot = player.id;
         this.orbitDistance = 0;
+        this.pan = undefined;
         this.version++;
     }
 
@@ -221,8 +226,54 @@ export class LiveController {
         }
         this.followName = name;
         this.followSlot = -1;
+        this.pan = undefined;
         this.lastRosterJumpTick = this.world.rosterTick;
         this.version++;
+    }
+
+    // Orbit pivot while following (tiles), or undefined.
+    getPivot(): readonly [number, number, number] | undefined {
+        return this.followName ? this.pivot : undefined;
+    }
+
+    // Switch to another player without resetting the view: keep the orbit angle and distance
+    // and glide the pivot over to them. Needs an existing follow to glide from.
+    panToPlayer(name: string, durationMs: number): boolean {
+        if (!this.followName || !this.pivot || this.orbitDistance === 0) {
+            return false;
+        }
+        this.pan = { from: [...this.pivot], start: performance.now(), duration: durationMs };
+        this.followName = name;
+        this.followSlot = -1;
+        this.lastRosterJumpTick = this.world.rosterTick;
+        this.version++;
+        return true;
+    }
+
+    // Cut straight to a player, keeping the camera's current orbit angle and distance.
+    jumpToPlayer(name: string, camera: Camera): boolean {
+        const visible = this.world.findPlayer(name);
+        const entry = this.world.rosterPlayers.find(
+            (p) => p[1].toLowerCase() === name.toLowerCase(),
+        );
+        const x = visible ? visible.x / 128 : entry ? entry[2] + 0.5 : undefined;
+        const z = visible ? visible.z / 128 : entry ? entry[3] + 0.5 : undefined;
+        if (x === undefined || z === undefined) {
+            return false;
+        }
+        if (this.orbitDistance === 0) {
+            this.orbitDistance = FOLLOW_DISTANCE;
+        }
+        camera.pitch = clamp(camera.pitch, MIN_ORBIT_PITCH, MAX_ORBIT_PITCH);
+        // Pivot height is a guess until their terrain loads; updateFollow corrects it.
+        placeOrbitCamera(camera, x, this.pivot?.[1] ?? 0, z, this.orbitDistance);
+        this.pan = undefined;
+        this.pivot = undefined;
+        this.followName = name;
+        this.followSlot = -1;
+        this.lastRosterJumpTick = this.world.rosterTick;
+        this.version++;
+        return true;
     }
 
     // Online players matching the panel's search, by name.
@@ -267,6 +318,8 @@ export class LiveController {
         }
         this.followSlot = -1;
         this.followName = undefined;
+        this.pan = undefined;
+        this.pivot = undefined;
         this.version++;
     }
 
@@ -317,6 +370,16 @@ export class LiveController {
             }
         }
         if (!player) {
+            if (this.pan && this.pivot) {
+                // Mid-glide and not streamed in yet: head for where the roster has them.
+                const name = this.followName.toLowerCase();
+                const entry = this.world.rosterPlayers.find((p) => p[1].toLowerCase() === name);
+                if (entry) {
+                    this.placePanned(camera, entry[2] + 0.5, this.pivot[1], entry[3] + 0.5);
+                    return;
+                }
+                this.pan = undefined;
+            }
             // Not streamed here (teleported, or we haven't arrived): jump to where the roster has
             // them, at most once per roster update.
             if (this.world.rosterTick !== this.lastRosterJumpTick) {
@@ -357,7 +420,24 @@ export class LiveController {
         }
 
         camera.pitch = clamp(camera.pitch, MIN_ORBIT_PITCH, MAX_ORBIT_PITCH);
-        placeOrbitCamera(camera, targetX, targetY, targetZ, this.orbitDistance);
+        this.placePanned(camera, targetX, targetY, targetZ);
+    }
+
+    // Orbits the pivot at the target, or partway there from the pan's start while gliding.
+    private placePanned(camera: Camera, x: number, y: number, z: number): void {
+        if (this.pan) {
+            const t = Math.min((performance.now() - this.pan.start) / this.pan.duration, 1);
+            const e = t * t * (3 - 2 * t);
+            const [fx, fy, fz] = this.pan.from;
+            x = fx + (x - fx) * e;
+            y = fy + (y - fy) * e;
+            z = fz + (z - fz) * e;
+            if (t >= 1) {
+                this.pan = undefined;
+            }
+        }
+        this.pivot = [x, y, z];
+        placeOrbitCamera(camera, x, y, z, this.orbitDistance);
     }
 }
 

@@ -47,7 +47,7 @@ export function MapViewerContainer({ mapViewer }: MapViewerContainerProps): JSX.
 
     const renderer = mapViewer.renderer;
 
-    const [hideUi, setHideUi] = useState(false);
+    const [hideUi, setHideUi] = useState(mapViewer.wallpaper);
     const [fps, setFps] = useState(0);
     const [cameraYaw, setCameraYaw] = useState(mapViewer.camera.getYaw());
     const [isWorldMapOpen, setWorldMapOpen] = useState<boolean>(false);
@@ -55,6 +55,7 @@ export function MapViewerContainer({ mapViewer }: MapViewerContainerProps): JSX.
     const [menuProps, setMenuProps] = useState<OsrsMenuProps | undefined>(undefined);
 
     const requestRef = useRef<number | undefined>();
+    const fadeRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
         if (process.env.NODE_ENV === "development") {
@@ -73,6 +74,10 @@ export function MapViewerContainer({ mapViewer }: MapViewerContainerProps): JSX.
             setSearchParams(mapViewer.getSearchParams(), { replace: true });
             mapViewer.needsSearchParamUpdate = false;
             console.log("Updated search params");
+        }
+
+        if (fadeRef.current) {
+            fadeRef.current.style.opacity = mapViewer.getWallpaperFade().toString();
         }
 
         if (!hideUi) {
@@ -189,7 +194,13 @@ export function MapViewerContainer({ mapViewer }: MapViewerContainerProps): JSX.
     );
 
     return (
-        <div className={"map-viewer max-height" + (isMobileDevice ? " mobile" : "")}>
+        <div
+            className={
+                "map-viewer max-height" +
+                (isMobileDevice ? " mobile" : "") +
+                (mapViewer.wallpaper ? " wallpaper" : "")
+            }
+        >
             <LiveOverlayCanvas renderer={renderer} />
 
             {menuProps && <OsrsMenu {...menuProps} />}
@@ -253,6 +264,8 @@ export function MapViewerContainer({ mapViewer }: MapViewerContainerProps): JSX.
             )}
 
             <RendererCanvas renderer={renderer} />
+
+            {mapViewer.wallpaper && <div ref={fadeRef} className="wallpaper-fade" />}
         </div>
     );
 }

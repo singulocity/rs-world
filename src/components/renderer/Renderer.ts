@@ -22,7 +22,7 @@ export abstract class Renderer {
     animationId: number | undefined;
     running: boolean = false;
 
-    fpsLimit: number = 999;
+    fpsLimit: number = 30;
 
     resolutionScale: number = DEFAULT_RESOLUTION_SCALE;
 

@@ -13,7 +13,7 @@ import { MapViewer } from "./MapViewer";
 // default camera (about 24 tiles up) gets the old fixed default of 128.
 const AUTO_RENDER_DISTANCE_BASE = 48;
 const AUTO_RENDER_DISTANCE_PER_HEIGHT = 3.25;
-const AUTO_RENDER_DISTANCE_MIN = 64;
+const AUTO_RENDER_DISTANCE_MIN = 256;
 const AUTO_RENDER_DISTANCE_MAX = 512;
 // Time constant (ms) for easing towards the target, so the fog edge doesn't jump when the
 // ground under the camera changes.

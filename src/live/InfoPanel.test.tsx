@@ -208,3 +208,42 @@ test("counts shared controller memory once under All bots without attributing it
     expect(within(chef.closest("tr")!).getByText("100.0 MiB")).toBeInTheDocument();
     expect(screen.getByText("Game engine")).toBeInTheDocument();
 });
+
+test("shared clients count once for a fleet with no per-bot processes", async () => {
+    (global.fetch as jest.Mock).mockResolvedValue({
+        ok: true,
+        json: async () => ({
+            ...snapshot,
+            fleet: { botCount: 10 },
+            processes: [
+                {
+                    service: "clients",
+                    pid: 100,
+                    workingSetBytes: 300 * 1024 ** 2,
+                    privateBytes: 500 * 1024 ** 2,
+                },
+                {
+                    service: "clients / child",
+                    pid: 101,
+                    workingSetBytes: 10 * 1024 ** 2,
+                    privateBytes: 20 * 1024 ** 2,
+                },
+                {
+                    service: "controller",
+                    pid: 102,
+                    workingSetBytes: 400 * 1024 ** 2,
+                    privateBytes: 600 * 1024 ** 2,
+                },
+            ],
+        }),
+    });
+    render(<InfoPanel mapViewer={viewer} />);
+    fireEvent.click(screen.getByRole("button", { name: "Processes" }));
+    const all = await screen.findByRole("button", { name: "All bots" });
+    expect(within(all.closest("tr")!).getByText("10 bots")).toBeInTheDocument();
+    expect(within(all.closest("tr")!).getByText("710.0 MiB")).toBeInTheDocument();
+    fireEvent.click(all);
+    expect(screen.getAllByText("Shared clients")).toHaveLength(1);
+    expect(screen.getByText("Shared clients / child")).toBeInTheDocument();
+    expect(screen.getAllByText("Shared controller")).toHaveLength(1);
+});

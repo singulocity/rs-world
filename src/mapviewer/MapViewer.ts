@@ -22,6 +22,7 @@ import { Camera, CameraView, ProjectionType } from "./Camera";
 import { InputManager } from "./InputManager";
 import { MapManager } from "./MapManager";
 import { MapViewerRenderer } from "./MapViewerRenderer";
+import { WallpaperBotCam } from "./WallpaperBotCam";
 import { NpcSpawn } from "./data/npc/NpcSpawn";
 import { WebGLMapViewerRenderer } from "./webgl/WebGLMapViewerRenderer";
 import { RenderDataWorkerPool } from "./worker/RenderDataWorkerPool";
@@ -60,7 +61,7 @@ export class MapViewer {
     // Settings
 
     // Tile distance. Follows the zoom: the renderer sets it every frame.
-    renderDistance: number = 128;
+    renderDistance: number = 256;
     autoRenderDistance: boolean = true;
     showNpcs: boolean = true;
     showItems: boolean = true;
@@ -95,6 +96,17 @@ export class MapViewer {
     liveParam: string | undefined;
     live?: LiveController;
     followParam: string | undefined;
+
+    // ?wallpaper=1: hide the UI and follow a random online player, switching every
+    // ?dwell=<seconds> (WallpaperBotCam), gliding to players within ?glide=<tiles> and
+    // fading out and cutting to farther ones. With no live feed or no one online (or ?bots=0) the
+    // camera drifts side to side instead: ?pan=<tiles/sec> peak speed (0 = still),
+    // ?range=<tiles> how far.
+    wallpaper: boolean = false;
+    wallpaperBotCam?: WallpaperBotCam;
+    wallpaperPan: number = 0.4;
+    wallpaperRange: number = 24;
+    wallpaperPhase: number = 0;
 
     constructor(
         readonly workerPool: RenderDataWorkerPool,
@@ -137,6 +149,18 @@ export class MapViewer {
             params["follow"] = followName;
         }
 
+        if (this.wallpaper) {
+            params["wallpaper"] = 1;
+            if (this.wallpaperBotCam) {
+                params["dwell"] = (this.wallpaperBotCam.dwellMs / 1000).toString();
+                params["glide"] = this.wallpaperBotCam.glideMaxTiles.toString();
+            } else {
+                params["bots"] = 0;
+            }
+            params["pan"] = this.wallpaperPan.toString();
+            params["range"] = this.wallpaperRange.toString();
+        }
+
         params["v"] = 1;
 
         return params;
@@ -171,6 +195,31 @@ export class MapViewer {
             this.followParam = follow;
             if (this.live) {
                 this.live.pendingFollow = follow;
+            }
+        }
+
+        const wallpaper = searchParams.get("wallpaper");
+        if (wallpaper !== null && wallpaper !== "0" && wallpaper !== "off") {
+            this.wallpaper = true;
+            this.tooltips = false;
+            this.inputManager.mouseEnabled = false;
+            const bots = searchParams.get("bots");
+            const dwell = parseFloat(searchParams.get("dwell") ?? "");
+            const glide = parseFloat(searchParams.get("glide") ?? "");
+            this.wallpaperBotCam =
+                bots === "0" || bots === "off"
+                    ? undefined
+                    : new WallpaperBotCam(
+                          (Number.isFinite(dwell) && dwell > 0 ? dwell : 45) * 1000,
+                          Number.isFinite(glide) && glide >= 0 ? glide : undefined,
+                      );
+            const pan = parseFloat(searchParams.get("pan") ?? "");
+            if (Number.isFinite(pan) && pan >= 0) {
+                this.wallpaperPan = pan;
+            }
+            const range = parseFloat(searchParams.get("range") ?? "");
+            if (Number.isFinite(range) && range > 0) {
+                this.wallpaperRange = range;
             }
         }
 
@@ -280,7 +329,42 @@ export class MapViewer {
         this.camera.updated = true;
     }
 
+    // 0 = clear, 1 = faded to black (bot cam cutting between far-apart players).
+    getWallpaperFade(): number {
+        return this.wallpaperBotCam?.fade ?? 0;
+    }
+
+    updateWallpaper(deltaTime: number): void {
+        if (!this.wallpaper) {
+            return;
+        }
+        const live = this.live;
+        if (this.wallpaperBotCam && live) {
+            this.wallpaperBotCam.update(live, this.camera, deltaTime);
+        }
+        if (live?.isFollowing()) {
+            return;
+        }
+
+        // Sinusoidal sideways drift (relative to camera yaw), so it eases at the ends and
+        // never wanders off. Peak speed = pan tiles/sec.
+        const pan = this.wallpaperPan;
+        if (pan <= 0) {
+            return;
+        }
+        const range = this.wallpaperRange;
+        const prev = range * Math.sin(this.wallpaperPhase);
+        this.wallpaperPhase =
+            (this.wallpaperPhase + ((pan / range) * deltaTime) / 1000) % (Math.PI * 2);
+        const next = range * Math.sin(this.wallpaperPhase);
+        this.camera.move(next - prev, 0, 0);
+    }
+
     updateSearchParams(): void {
+        if (this.wallpaper) {
+            // Don't rewrite the URL every frame while drifting.
+            return;
+        }
         this.needsSearchParamUpdate = true;
         this.lastTimeSearchParamsUpdated = performance.now();
     }
