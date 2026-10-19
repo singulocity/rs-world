@@ -237,6 +237,40 @@ export const MapViewerControls = memo(
                     },
                     { collapsed: false },
                 ),
+                Distance: folder(
+                    {
+                        Render: {
+                            value: mapViewer.renderDistance,
+                            min: 64,
+                            max: 1024,
+                            step: 64,
+                            onChange: (v: number, _path: string, context: { initial: boolean }) => {
+                                if (context.initial) return;
+                                mapViewer.autoRenderDistance = false;
+                                mapViewer.renderDistance = v;
+                            },
+                        },
+                        Unload: {
+                            value: mapViewer.unloadDistance,
+                            min: 1,
+                            max: 30,
+                            step: 1,
+                            onChange: (v: number) => {
+                                mapViewer.unloadDistance = v;
+                            },
+                        },
+                        Lod: {
+                            value: mapViewer.lodDistance,
+                            min: 0,
+                            max: 30,
+                            step: 1,
+                            onChange: (v: number) => {
+                                mapViewer.lodDistance = v;
+                            },
+                        },
+                    },
+                    { collapsed: true },
+                ),
                 Render: folder(
                     {
                         "Fps Limit": {
@@ -248,6 +282,24 @@ export const MapViewerControls = memo(
                             },
                         },
                         ...renderer.getControls(),
+                        Entity: folder(
+                            {
+                                Items: {
+                                    value: mapViewer.showItems,
+                                    onChange: (v: boolean) => {
+                                        mapViewer.showItems = v;
+                                    },
+                                },
+                                Npcs: {
+                                    value: mapViewer.showNpcs,
+                                    onChange: (v: boolean) => {
+                                        mapViewer.showNpcs = v;
+                                        if (!mapViewer.live) renderer.setLoadNpcs?.(v);
+                                    },
+                                },
+                            },
+                            { collapsed: true },
+                        ),
                     },
                     { collapsed: true },
                 ),

@@ -14,6 +14,7 @@ import { DrawRange } from "../mapviewer/webgl/DrawRange";
 import { InteractType } from "../mapviewer/webgl/InteractType";
 import { WebGLMapSquare } from "../mapviewer/webgl/WebGLMapSquare";
 import { RenderDataWorkerPool } from "../mapviewer/worker/RenderDataWorkerPool";
+import { ObjTypeLoader } from "../rs/config/objtype/ObjTypeLoader";
 import { SeqTypeLoader } from "../rs/config/seqtype/SeqTypeLoader";
 import { EntityAnimData, EntityModelSpec } from "./EntityModelLoader";
 import { FAR_PLAYER_APPEARANCE, FAR_PLAYER_MODEL_KEY } from "./FarPlayers";
@@ -103,6 +104,7 @@ export class LiveEntityRenderer {
 
     showPlayers: boolean = true;
     showNpcs: boolean = true;
+    showItems: boolean = true;
 
     private now: number = 0;
     private lastEvictAt: number = 0;
@@ -123,6 +125,7 @@ export class LiveEntityRenderer {
         readonly seqTypeLoader: SeqTypeLoader,
         readonly mapManager: MapManager<WebGLMapSquare>,
         readonly world: LiveWorld,
+        readonly objTypeLoader: ObjTypeLoader,
     ) {}
 
     // Ground height at a fine coord in the RS convention (negative is up), or undefined when the
@@ -188,9 +191,50 @@ export class LiveEntityRenderer {
             this.addFarPlayers(maxLevel, renderDistance);
         }
 
+        if (this.showItems) this.addGroundItems(maxLevel, renderDistance);
+
         this.buildRuns();
         this.uploadData();
         this.evictPages();
+    }
+
+    private addGroundItems(maxLevel: number, renderDistance: number): void {
+        const items = [...this.world.groundItems.values()];
+        items.sort(
+            (a, b) =>
+                Math.hypot(a.x - this.cameraX, a.z - this.cameraZ) -
+                Math.hypot(b.x - this.cameraX, b.z - this.cameraZ),
+        );
+        for (const item of items) {
+            if (this.items.length >= MAX_INSTANCES) break;
+            if (
+                item.l > maxLevel ||
+                Math.max(Math.abs(item.x - this.cameraX), Math.abs(item.z - this.cameraZ)) >
+                    renderDistance
+            )
+                continue;
+            const x = item.x * 128 + 64;
+            const z = item.z * 128 + 64;
+            const ground = this.getGroundHeight(item.l, x, z);
+            if (!ground) continue;
+            // Resolve stack variants before choosing the shared GPU page. Many different
+            // coin counts can use the same model without baking a page for every count.
+            const type = this.objTypeLoader.load(item.t).getCountObj(this.objTypeLoader, item.c);
+            const page = this.requestPage("o" + type.id, { kind: "item", objType: type.id }, -1);
+            if (!page) continue;
+            page.lastUsedAt = this.now;
+            this.items.push({
+                page,
+                frame: 0,
+                x,
+                y: ground.y,
+                z,
+                yaw: 0,
+                plane: ground.plane,
+                interactId: item.i,
+                interactType: InteractType.LIVE_ITEM,
+            });
+        }
     }
 
     private addEntity(e: LiveEntity, maxLevel: number): void {

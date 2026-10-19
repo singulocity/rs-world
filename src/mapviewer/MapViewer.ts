@@ -2,6 +2,7 @@ import { vec3 } from "gl-matrix";
 import { URLSearchParamsInit } from "react-router-dom";
 
 import { OsrsMenuEntry } from "../components/rs/menu/OsrsMenu";
+import { LiveController, getDefaultFeedUrl } from "../live/LiveController";
 import { MenuTargetType } from "../rs/MenuEntry";
 import { CacheSystem } from "../rs/cache/CacheSystem";
 import { CacheLoaderFactory, getCacheLoaderFactory } from "../rs/cache/loader/CacheLoaderFactory";
@@ -16,7 +17,6 @@ import { SeqFrameLoader } from "../rs/model/seq/SeqFrameLoader";
 import { Pathfinder } from "../rs/pathfinder/Pathfinder";
 import { TextureLoader } from "../rs/texture/TextureLoader";
 import { isTouchDevice } from "../util/DeviceUtil";
-import { LiveController, getDefaultFeedUrl } from "../live/LiveController";
 import { LoadedCache } from "./Caches";
 import { Camera, CameraView, ProjectionType } from "./Camera";
 import { InputManager } from "./InputManager";
@@ -61,6 +61,9 @@ export class MapViewer {
 
     // Tile distance. Follows the zoom: the renderer sets it every frame.
     renderDistance: number = 128;
+    autoRenderDistance: boolean = true;
+    showNpcs: boolean = true;
+    showItems: boolean = true;
     // Map square distance
     unloadDistance: number = 2;
     // Map square distance

@@ -226,6 +226,7 @@ export abstract class MapViewerRenderer<T extends MapSquare = MapSquare> extends
     // ground (perspective) or with the area on screen (ortho).
     updateRenderDistance(deltaTime: number) {
         const mapViewer = this.mapViewer;
+        if (!mapViewer.autoRenderDistance) return;
         const camera = mapViewer.camera;
         const groundY = this.getGroundHeight(camera.getPosX(), camera.getPosZ());
         if (groundY !== undefined) {

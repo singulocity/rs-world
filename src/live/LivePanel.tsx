@@ -7,7 +7,7 @@ import "./LivePanel.css";
 const PAGE_SIZE = 50;
 const LOAD_MORE_MARGIN = 100;
 
-function useLiveVersion(mapViewer: MapViewer): void {
+export function useLiveVersion(mapViewer: MapViewer): void {
     const [, setVersion] = useState(0);
     useEffect(() => {
         // The feed updates every tick; re-render at most 4x a second.
@@ -157,6 +157,16 @@ export function LivePanel({ mapViewer }: { mapViewer: MapViewer }): JSX.Element 
                                 >
                                     <span className="live-name">{name}</span>
                                     <span className="live-dim">cb {combat}</span>
+                                    <button
+                                        className="live-button"
+                                        aria-label={`Inspect ${name}`}
+                                        onClick={(event) => {
+                                            event.stopPropagation();
+                                            live.inspect(name);
+                                        }}
+                                    >
+                                        Inspect
+                                    </button>
                                 </div>
                             );
                         })}

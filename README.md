@@ -96,3 +96,30 @@ On the engine side, see the deployment notes in [DESIGN.md](DESIGN.md#deploying-
   2009scape, RuneStar, Blurite and the RuneApps Model Viewer
 - [rs-sdk](https://github.com/MaxBittker/rs-sdk) and [LostCity](https://github.com/LostCityRS) (MIT):
   the engine, the cache, and the client logic the live layer ports
+
+## Character inspection
+
+Right-click a live player and choose **Inspect**, or use **Inspect** beside their name
+in the Live panel. The panel shows a 28-slot inventory and enabled skills with current/base
+levels, XP, and progress toward the next level. Inspection stays on that character when
+you move the camera; **Follow character** is separate. Close the panel or press Escape
+while it has focus to stop inspection.
+
+Requires an updated rs-sdk engine advertising inspection support on its world feed.
+Only the selected character's details are sent, at most once per second. The existing
+world-feed access settings also apply to inspection. Item icons come from that engine's
+`/sprite/item/` endpoint; no bot credentials or gateway connection are needed.
+
+### Ground items and render controls
+
+With the updated rs-sdk server, the viewer draws live ground items: static spawns,
+bot drops, changing stack quantities, pickups and respawns. The optional v1 feed
+extension uses `{t:"items",on:true}` and tick `o`/`ro` fields. Spectators can see
+private drops too. Right-click an item to examine its name and quantity.
+
+Open **Render → Entity** to toggle **Items** or **Npcs**. The restored **Distance**
+folder contains the upstream **Render**, **Unload**, and **Lod** sliders. Render
+is measured in tiles (64 tiles per map chunk); changing it overrides automatic
+camera distance until the page reloads. Unload and Lod are measured in map chunks.
+Live NPCs and items are streamed within the server's 384 × 384 tile camera region;
+distant players still use the global roster.

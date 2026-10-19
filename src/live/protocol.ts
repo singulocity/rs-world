@@ -9,6 +9,8 @@ export type FeedHello = {
     tick: number;
     tickMs: number;
     players: number;
+    inspect?: boolean;
+    items?: boolean;
 };
 
 // One entity's changes this tick. Keys are only present when relevant.
@@ -49,6 +51,9 @@ export type FeedEntity = {
     em?: [number, number, number, number, number, number, number];
 };
 
+// Stable server object identity; count changes replace the complete record.
+export type FeedGroundItem = { i: number; t: number; c: number; x: number; z: number; l: number };
+
 export type FeedTick = {
     t: "tick";
     k: number;
@@ -58,6 +63,8 @@ export type FeedTick = {
     n?: FeedEntity[];
     rp?: number[];
     rn?: number[];
+    o?: FeedGroundItem[];
+    ro?: number[];
 };
 
 // [slot, name, x, z, level, combatLevel]
@@ -70,4 +77,27 @@ export type FeedRoster = {
     npcs: number;
 };
 
-export type FeedMessage = FeedHello | FeedTick | FeedRoster;
+export type InspectionItem = { id: number; count: number; name: string };
+export type InspectionSkill = {
+    id: number;
+    name: string;
+    level: number;
+    baseLevel: number;
+    xp: number;
+    levelXp: number;
+    nextLevelXp: number | null;
+};
+export type InspectedPlayer = {
+    name: string;
+    combatLevel: number;
+    hp: [number, number];
+    inventory: (InspectionItem | null)[];
+    skills: InspectionSkill[];
+};
+export type FeedInspection = {
+    t: "inspect";
+    k: number;
+    name: string;
+    player: InspectedPlayer | null;
+};
+export type FeedMessage = FeedHello | FeedTick | FeedRoster | FeedInspection;

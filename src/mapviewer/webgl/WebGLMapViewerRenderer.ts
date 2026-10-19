@@ -25,7 +25,6 @@ import { createTextureArray } from "../../picogl/PicoTexture";
 import { MenuTargetType } from "../../rs/MenuEntry";
 import { Scene } from "../../rs/scene/Scene";
 import { isTouchDevice, isWebGL2Supported, pixelRatio } from "../../util/DeviceUtil";
-
 import { MapViewer } from "../MapViewer";
 import { MapViewerRenderer } from "../MapViewerRenderer";
 import { DrawRange, NULL_DRAW_RANGE } from "./DrawRange";
@@ -38,8 +37,8 @@ import { SdMapLoaderInput } from "./loader/SdMapLoaderInput";
 import {
     FRAME_FXAA_PROGRAM,
     FRAME_PROGRAM,
-    createMainProgram,
     createEntityProgram,
+    createMainProgram,
     createNpcProgram,
 } from "./shaders/Shaders";
 
@@ -839,7 +838,11 @@ export class WebGLMapViewerRenderer extends MapViewerRenderer<WebGLMapSquare> {
         const wheelDelta = inputManager.takeWheelDelta();
         const live = this.mapViewer.live;
         if (live?.isFollowing()) {
-            if (camera.pos[0] !== cameraX || camera.pos[1] !== cameraY || camera.pos[2] !== cameraZ) {
+            if (
+                camera.pos[0] !== cameraX ||
+                camera.pos[1] !== cameraY ||
+                camera.pos[2] !== cameraZ
+            ) {
                 live.unfollow();
             } else {
                 live.zoom(wheelDelta);
@@ -907,7 +910,10 @@ export class WebGLMapViewerRenderer extends MapViewerRenderer<WebGLMapSquare> {
         this.tickPass(timeSec, ticksElapsed, clientTicksElapsed);
         if (live && this.liveRenderer) {
             this.liveRenderer.showPlayers = live.options.showPlayers;
+            live.options.showNpcs = this.mapViewer.showNpcs;
+            live.options.showItems = this.mapViewer.showItems;
             this.liveRenderer.showNpcs = live.options.showNpcs;
+            this.liveRenderer.showItems = live.options.showItems;
             this.liveRenderer.prepare(this.maxLevel, camera, renderDistance);
         }
         const tickTime = performance.now() - tickStart;
@@ -983,7 +989,15 @@ export class WebGLMapViewerRenderer extends MapViewerRenderer<WebGLMapSquare> {
         }
 
         if (live && this.liveRenderer) {
-            this.liveOverlay.draw(live, camera, this.getLiveGroundY, this.maxLevel, renderDistance, fogDepth, this.liveRenderer.farLabels);
+            this.liveOverlay.draw(
+                live,
+                camera,
+                this.getLiveGroundY,
+                this.maxLevel,
+                renderDistance,
+                fogDepth,
+                this.liveRenderer.farLabels,
+            );
         }
 
         // Load new map squares
@@ -1062,6 +1076,7 @@ export class WebGLMapViewerRenderer extends MapViewerRenderer<WebGLMapSquare> {
                 this.mapViewer.seqTypeLoader,
                 this.mapManager,
                 live.world,
+                this.mapViewer.objTypeLoader,
             );
         }
         live.update(
@@ -1420,6 +1435,21 @@ export class WebGLMapViewerRenderer extends MapViewerRenderer<WebGLMapSquare> {
                         targetLevel: -1,
                         onClick: this.mapViewer.onExamine,
                     });
+                } else if (live && interactType === InteractType.LIVE_ITEM) {
+                    const item = live.world.groundItems.get(interactId);
+                    if (!item || !live.options.showItems) continue;
+                    const key = "o" + interactId;
+                    if (liveIds.has(key)) continue;
+                    liveIds.add(key);
+                    const type = this.mapViewer.objTypeLoader.load(item.t);
+                    examineEntries.push({
+                        option: "Examine",
+                        targetId: type.id,
+                        targetType: MenuTargetType.OBJ,
+                        targetName: type.name + (item.c > 1 ? " × " + item.c.toLocaleString() : ""),
+                        targetLevel: -1,
+                        onClick: this.mapViewer.onExamine,
+                    });
                 } else if (interactType === InteractType.OBJ) {
                     const objType = this.mapViewer.objTypeLoader.load(interactId);
                     if (objType.name === "null") {
@@ -1466,32 +1496,29 @@ export class WebGLMapViewerRenderer extends MapViewerRenderer<WebGLMapSquare> {
 
                     if (isPlayer) {
                         const player = live.world.players.get(interactId);
-                        if (!player) {
-                            // Outside the streamed area, drawn from the roster: fly there.
-                            const far = live.world.far.players.get(interactId);
-                            if (far) {
-                                menuEntries.push({
-                                    option: "Follow",
-                                    targetId: far.slot,
-                                    targetType: MenuTargetType.PLAYER,
-                                    targetName: far.name,
-                                    targetLevel: far.combatLevel,
-                                    onClick: () => {
-                                        live.goToPlayer(far.name, this.mapViewer.camera);
-                                        this.mapViewer.closeMenu();
-                                    },
-                                });
-                            }
-                            continue;
-                        }
-                        menuEntries.push({
-                            option: "Follow",
-                            targetId: player.id,
+                        const far = live.world.far.players.get(interactId);
+                        const name = player?.name ?? far?.name;
+                        if (!name) continue;
+                        const target = {
+                            targetId: interactId,
                             targetType: MenuTargetType.PLAYER,
-                            targetName: player.name,
-                            targetLevel: player.combatLevel,
+                            targetName: name,
+                            targetLevel: player?.combatLevel ?? far!.combatLevel,
+                        };
+                        menuEntries.push({
+                            ...target,
+                            option: "Follow",
                             onClick: () => {
-                                live.follow(player);
+                                if (player) live.follow(player);
+                                else live.goToPlayer(name, this.mapViewer.camera);
+                                this.mapViewer.closeMenu();
+                            },
+                        });
+                        menuEntries.push({
+                            ...target,
+                            option: "Inspect",
+                            onClick: () => {
+                                live.inspect(name);
                                 this.mapViewer.closeMenu();
                             },
                         });

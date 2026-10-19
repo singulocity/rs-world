@@ -10,6 +10,7 @@ import { WorldMapModal } from "../components/rs/worldmap/WorldMapModal";
 import { InfoPanel } from "../live/InfoPanel";
 import { LiveOverlay } from "../live/LiveOverlay";
 import { LivePanel } from "../live/LivePanel";
+import { PlayerInspector } from "../live/PlayerInspector";
 import { RS_TO_DEGREES } from "../rs/MathConstants";
 import { isMobileDevice, isTouchDevice } from "../util/DeviceUtil";
 import { MapViewer } from "./MapViewer";
@@ -210,8 +211,9 @@ export function MapViewerContainer({ mapViewer }: MapViewerContainerProps): JSX.
                         <div className="fps-counter content-text">{mapViewer.debugText}</div>
                     </div>
                     <div className="live-hud">
-                        <InfoPanel />
+                        <InfoPanel mapViewer={mapViewer} />
                         <LivePanel mapViewer={mapViewer} />
+                        <PlayerInspector mapViewer={mapViewer} />
                     </div>
                     <WorldMapModal
                         isOpen={isWorldMapOpen}

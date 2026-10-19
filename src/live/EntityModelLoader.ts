@@ -2,6 +2,7 @@ import { TypeLoader } from "../rs/config/TypeLoader";
 import { IdkType } from "../rs/config/idktype/IdkType";
 import { NpcModelLoader } from "../rs/config/npctype/NpcModelLoader";
 import { NpcTypeLoader } from "../rs/config/npctype/NpcTypeLoader";
+import { ObjModelLoader } from "../rs/config/objtype/ObjModelLoader";
 import { ObjType } from "../rs/config/objtype/ObjType";
 import { ObjTypeLoader } from "../rs/config/objtype/ObjTypeLoader";
 import { SeqTypeLoader } from "../rs/config/seqtype/SeqTypeLoader";
@@ -17,6 +18,7 @@ import { PLAYER_RECOL_1D, PLAYER_RECOL_2D, PlayerAppearance } from "./PlayerAppe
 // What to build a model from. Player bodies are keyed by appearance + held-item overrides so
 // identical-looking players share baked frames.
 export type EntityModelSpec =
+    | { kind: "item"; objType: number }
     | { kind: "npc"; npcType: number }
     | { kind: "player"; appearance: PlayerAppearance; leftHand: number; rightHand: number }
     | { kind: "spot"; spotAnim: number };
@@ -52,6 +54,7 @@ export class EntityModelLoader {
         readonly modelLoader: ModelLoader,
         readonly textureLoader: TextureLoader,
         readonly npcModelLoader: NpcModelLoader,
+        readonly objModelLoader: ObjModelLoader,
     ) {}
 
     bake(request: EntityAnimRequest, textureIdIndexMap: Map<number, number>): EntityAnimData {
@@ -101,6 +104,8 @@ export class EntityModelLoader {
 
     getModel(spec: EntityModelSpec, seqId: number, frame: number): Model | undefined {
         switch (spec.kind) {
+            case "item":
+                return this.objModelLoader.getModel(spec.objType, 1);
             case "npc": {
                 const npcType = this.npcTypeLoader.load(spec.npcType);
                 return npcType ? this.npcModelLoader.getModel(npcType, seqId, frame) : undefined;

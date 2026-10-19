@@ -1,4 +1,4 @@
-import { FeedHello, FeedMessage, FeedRoster, FeedTick } from "./protocol";
+import { FeedHello, FeedInspection, FeedMessage, FeedRoster, FeedTick } from "./protocol";
 
 export type FeedStatus = "connecting" | "open" | "closed";
 
@@ -6,6 +6,7 @@ export type WorldFeedHandlers = {
     onHello(hello: FeedHello): void;
     onTick(tick: FeedTick): void;
     onRoster(roster: FeedRoster): void;
+    onInspection?(inspection: FeedInspection): void;
     onStatus(status: FeedStatus, error?: string): void;
 };
 
@@ -22,6 +23,8 @@ export class WorldFeedClient {
 
     area?: Area;
     roster: boolean = false;
+    items: boolean = false;
+    inspectName: string | null = null;
 
     bytesReceived: number = 0;
     messagesReceived: number = 0;
@@ -52,7 +55,13 @@ export class WorldFeedClient {
     setArea(x: number, z: number, w: number, h: number): void {
         const area = { x: x | 0, z: z | 0, w: w | 0, h: h | 0 };
         const current = this.area;
-        if (current && current.x === area.x && current.z === area.z && current.w === area.w && current.h === area.h) {
+        if (
+            current &&
+            current.x === area.x &&
+            current.z === area.z &&
+            current.w === area.w &&
+            current.h === area.h
+        ) {
             return;
         }
         this.area = area;
@@ -65,6 +74,17 @@ export class WorldFeedClient {
         }
         this.roster = on;
         this.send({ t: "roster", on });
+    }
+
+    setItems(on: boolean): void {
+        if (this.items === on) return;
+        this.items = on;
+        this.send({ t: "items", on });
+    }
+
+    setInspection(name: string | null): void {
+        this.inspectName = name;
+        this.send({ t: "inspect", name });
     }
 
     private open(): void {
@@ -83,6 +103,8 @@ export class WorldFeedClient {
             this.reconnectDelay = 1000;
             this.setStatus("open");
             this.sendArea();
+            if (this.items) this.send({ t: "items", on: true });
+            if (this.inspectName) this.send({ t: "inspect", name: this.inspectName });
             if (this.roster) {
                 this.send({ t: "roster", on: true });
             }
@@ -108,6 +130,9 @@ export class WorldFeedClient {
                 case "tick":
                     this.handlers.onTick(msg);
                     break;
+                case "inspect":
+                    this.handlers.onInspection?.(msg);
+                    break;
                 case "roster":
                     this.handlers.onRoster(msg);
                     break;
@@ -123,7 +148,10 @@ export class WorldFeedClient {
                 return;
             }
             this.ws = undefined;
-            const reason = event.reason || this.error || (event.code !== 1000 ? `closed (${event.code})` : undefined);
+            const reason =
+                event.reason ||
+                this.error ||
+                (event.code !== 1000 ? `closed (${event.code})` : undefined);
             this.setStatus("closed", reason);
             this.scheduleReconnect();
         };
