@@ -177,3 +177,34 @@ test("keeps a bot expanded across live samples and updates its combined total", 
     expect(within(allBots.closest("tr")!).getByText("768.0 MiB")).toBeInTheDocument();
     expect(screen.getByText("43")).toBeInTheDocument();
 });
+
+test("counts shared controller memory once under All bots without attributing it to each bot", async () => {
+    const processes = [
+        { service: "bot-ChefCora", pid: 42, workingSetBytes: 100, privateBytes: 200 },
+        { service: "bot-PondPiper", pid: 43, workingSetBytes: 200, privateBytes: 300 },
+        { service: "controller", pid: 44, workingSetBytes: 300, privateBytes: 400 },
+        { service: "controller / child", pid: 45, workingSetBytes: 10, privateBytes: 20 },
+        { service: "engine", pid: 46, workingSetBytes: 400, privateBytes: 500 },
+    ].map((p) => ({
+        ...p,
+        workingSetBytes: p.workingSetBytes * 1024 ** 2,
+        privateBytes: p.privateBytes * 1024 ** 2,
+    }));
+    (global.fetch as jest.Mock).mockResolvedValue({
+        ok: true,
+        json: async () => ({ ...snapshot, processes }),
+    });
+    render(<InfoPanel mapViewer={viewer} />);
+    fireEvent.click(screen.getByRole("button", { name: "Processes" }));
+    const all = await screen.findByRole("button", { name: "All bots" });
+    expect(within(all.closest("tr")!).getByText("610.0 MiB")).toBeInTheDocument();
+    expect(within(all.closest("tr")!).getByText("920.0 MiB")).toBeInTheDocument();
+    expect(within(all.closest("tr")!).getByText("2 bots")).toBeInTheDocument();
+    expect(screen.queryByText("Shared controller")).not.toBeInTheDocument();
+    fireEvent.click(all);
+    expect(screen.getAllByText("Shared controller")).toHaveLength(1);
+    expect(screen.getByText("Shared controller / child")).toBeInTheDocument();
+    const chef = screen.getByRole("button", { name: "ChefCora processes" });
+    expect(within(chef.closest("tr")!).getByText("100.0 MiB")).toBeInTheDocument();
+    expect(screen.getByText("Game engine")).toBeInTheDocument();
+});

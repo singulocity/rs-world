@@ -173,3 +173,8 @@
 .memory-bot-total > td:first-child {
     padding-left: 18px;
 }
+
+.memory-shared-controller > td:first-child {
+    padding-left: 18px;
+    color: #c5b99e;
+}

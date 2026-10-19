@@ -44,6 +44,7 @@ function serviceName(service: string): string {
         .replace(/^engine$/, "Game engine")
         .replace(/^gateway$/, "Gateway")
         .replace(/^viewer/, "Viewer")
+        .replace(/^controller/, "Shared controller")
         .replace(/^bot$/, "Client · original bot")
         .replace(/^routine$/, "Controller · original bot")
         .replace(/^bot-/, "Client · ")
@@ -54,6 +55,8 @@ type MemoryGroup = {
     key: string;
     service: string;
     bot: boolean;
+    fleetShared?: boolean;
+    botCount?: number;
     processes: ProcessMemory[];
     children?: MemoryGroup[];
     workingSetBytes: number;
@@ -76,6 +79,7 @@ function groupProcesses(processes: ProcessMemory[]): MemoryGroup[] {
                 key,
                 service: name,
                 bot: !!bot,
+                fleetShared: /^controller(?: \/ child)?$/.test(process.service),
                 processes: [],
                 workingSetBytes: 0,
                 privateBytes: 0,
@@ -111,6 +115,8 @@ function MemoryGroupRows({
                 className={
                     group.children
                         ? "memory-fleet-total"
+                        : group.fleetShared
+                        ? "memory-shared-controller"
                         : group.bot
                         ? "memory-bot-total"
                         : undefined
@@ -132,7 +138,7 @@ function MemoryGroupRows({
                             {group.service}
                             <span className="memory-process-count">
                                 {group.children
-                                    ? `${group.children.length} bots`
+                                    ? `${group.botCount ?? group.children.length} bots`
                                     : `${group.processes.length} processes`}
                             </span>
                         </button>
@@ -232,16 +238,18 @@ export function InfoPanel({ mapViewer }: { mapViewer: MapViewer }): JSX.Element 
         sort === "service" ? a.service.localeCompare(b.service) : b[sort] - a[sort],
     );
     const bots = groups.filter((group) => group.bot);
-    const rows: MemoryGroup[] = groups.filter((group) => !group.bot);
-    if (bots.length) {
+    const fleetGroups = groups.filter((group) => group.bot || group.fleetShared);
+    const rows: MemoryGroup[] = groups.filter((group) => !group.bot && !group.fleetShared);
+    if (fleetGroups.length) {
         rows.push({
             key: "all-bots",
             service: "All bots",
             bot: false,
-            children: bots,
-            processes: bots.flatMap((group) => group.processes),
-            workingSetBytes: bots.reduce((sum, group) => sum + group.workingSetBytes, 0),
-            privateBytes: bots.reduce((sum, group) => sum + group.privateBytes, 0),
+            children: fleetGroups,
+            botCount: bots.length,
+            processes: fleetGroups.flatMap((group) => group.processes),
+            workingSetBytes: fleetGroups.reduce((sum, group) => sum + group.workingSetBytes, 0),
+            privateBytes: fleetGroups.reduce((sum, group) => sum + group.privateBytes, 0),
         });
     }
     rows.sort((a, b) =>
@@ -377,7 +385,8 @@ export function InfoPanel({ mapViewer }: { mapViewer: MapViewer }): JSX.Element 
                             </div>
                             <p className="memory-note">
                                 Expand All bots, then a bot to see its client, controller and child
-                                processes. Browser and GPU usage are excluded.
+                                processes. Shared controller memory is counted once under All bots.
+                                Browser and GPU usage are excluded.
                             </p>
                             <p className="memory-note">
                                 Working sets include shared pages, so their sum can double-count
