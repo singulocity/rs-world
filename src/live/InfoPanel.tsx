@@ -15,6 +15,7 @@ type MemorySnapshot = {
     sampledAt: string;
     processes: ProcessMemory[];
     totals: { processCount: number; workingSetBytes: number; privateBytes: number };
+    fleet?: { botCount: number };
     host: { totalBytes: number; availableBytes: number };
 };
 
@@ -44,6 +45,7 @@ function serviceName(service: string): string {
         .replace(/^engine$/, "Game engine")
         .replace(/^gateway$/, "Gateway")
         .replace(/^viewer/, "Viewer")
+        .replace(/^clients/, "Shared clients")
         .replace(/^controller/, "Shared controller")
         .replace(/^bot$/, "Client · original bot")
         .replace(/^routine$/, "Controller · original bot")
@@ -79,7 +81,7 @@ function groupProcesses(processes: ProcessMemory[]): MemoryGroup[] {
                 key,
                 service: name,
                 bot: !!bot,
-                fleetShared: /^controller(?: \/ child)?$/.test(process.service),
+                fleetShared: /^(?:controller|clients)(?: \/ child)?$/.test(process.service),
                 processes: [],
                 workingSetBytes: 0,
                 privateBytes: 0,
@@ -246,7 +248,7 @@ export function InfoPanel({ mapViewer }: { mapViewer: MapViewer }): JSX.Element 
             service: "All bots",
             bot: false,
             children: fleetGroups,
-            botCount: bots.length,
+            botCount: snapshot?.fleet?.botCount || bots.length,
             processes: fleetGroups.flatMap((group) => group.processes),
             workingSetBytes: fleetGroups.reduce((sum, group) => sum + group.workingSetBytes, 0),
             privateBytes: fleetGroups.reduce((sum, group) => sum + group.privateBytes, 0),
@@ -383,15 +385,6 @@ export function InfoPanel({ mapViewer }: { mapViewer: MapViewer }): JSX.Element 
                                     ))}
                                 </table>
                             </div>
-                            <p className="memory-note">
-                                Expand All bots, then a bot to see its client, controller and child
-                                processes. Shared controller memory is counted once under All bots.
-                                Browser and GPU usage are excluded.
-                            </p>
-                            <p className="memory-note">
-                                Working sets include shared pages, so their sum can double-count
-                                RAM. Private is committed memory, which may be paged out.
-                            </p>
                         </>
                     )}
                 </section>

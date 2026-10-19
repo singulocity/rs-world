@@ -53,6 +53,19 @@
     right: 0;
 }
 
+.map-viewer.wallpaper,
+.map-viewer.wallpaper canvas {
+    cursor: none;
+}
+
+.wallpaper-fade {
+    position: absolute;
+    inset: 0;
+    background: #000;
+    opacity: 0;
+    pointer-events: none;
+}
+
 .live-overlay-container {
     position: absolute;
     inset: 0;

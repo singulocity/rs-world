@@ -154,7 +154,7 @@ export class WebGLMapViewerRenderer extends MapViewerRenderer<WebGLMapSquare> {
     // Settings
     maxLevel: number = Scene.MAX_LEVELS - 1;
 
-    skyColor: vec4 = vec4.fromValues(0, 0, 0, 1);
+    skyColor: vec4 = vec4.fromValues(0x9c / 255, 0xb2 / 255, 0xcb / 255, 1);
     fogDepth: number = 16;
 
     // 1.0 is the client's darkest setting; each Brightness step brightens by 0.1.
@@ -828,6 +828,8 @@ export class WebGLMapViewerRenderer extends MapViewerRenderer<WebGLMapSquare> {
 
         const inputManager = this.mapViewer.inputManager;
         const camera = this.mapViewer.camera;
+
+        this.mapViewer.updateWallpaper(deltaTime);
 
         // Moving the camera yourself (WASD, up/down, gamepad stick, touch drag) stops following;
         // rotating doesn't, it orbits the followed player instead.
